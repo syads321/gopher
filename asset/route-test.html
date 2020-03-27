@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>CodePen - Example: Static route</title>
+  <link rel='stylesheet' href='https://api.tomtom.com/maps-sdk-for-web/cdn/5.x/5.44.0/maps/maps.css'>
+  <link rel='stylesheet' href='https://api.tomtom.com/maps-sdk-for-web/cdn/5.x/5.44.0/maps/css-styles/routing.css'>
+  <link rel='stylesheet'
+    href='https://api.tomtom.com/maps-sdk-for-web/5.x/5.44.0//examples/pages/examples/assets/ui-library/index.css'>
+  <link rel="apple-touch-icon" type="image/png"
+    href="https://static.codepen.io/assets/favicon/apple-touch-icon-5ae1a0698dcc2402e9712f7d01ed509a57814f994c660df9f7a952f3060705ee.png" />
+  <meta name="apple-mobile-web-app-title" content="CodePen">
+  <link rel="shortcut icon" type="image/x-icon"
+    href="https://static.codepen.io/assets/favicon/favicon-aec34940fbc1a6e787974dcd360f2c6b63348d4b1f4e06c77743096d55480f33.ico" />
+  <link rel="mask-icon" type=""
+    href="https://static.codepen.io/assets/favicon/logo-pin-8f3771b1072e3c38bd662872f6b673a722f4b3ca2421637d5596661b4e2132cc.svg"
+    color="#111" />
+  <style>
+    .icon {
+      background-size: cover;
+      height: 30px;
+      width: 30px;
+    }
+
+    html {
+      height: 100%;
+    }
+  </style>
+</head>
+
+<body translate="no">
+
+  <body>
+    <div id='map' class='map'></div>
+  </body>
+  <script src='https://api.tomtom.com/maps-sdk-for-web/cdn/5.x/5.44.0/maps/maps-web.min.js'></script>
+  <script src='https://api.tomtom.com/maps-sdk-for-web/cdn/5.x/5.44.0/services/services-web.min.js'></script>
+  <script
+    src='https://api.tomtom.com/maps-sdk-for-web/5.x/5.44.0//examples/pages/examples/assets/js/mobile-or-tablet.js'></script>
+  <script src='js/formatters.js'></script>
+  <script src="https://cdn.socket.io/socket.io-1.2.0.js"></script>
+  <script id="rendered-js">
+    var map = tt.map({
+      key: 'Q8ZbhC6idTbdjVvKa2IAgUJvqplianeo',
+      container: 'map',
+      style: 'tomtom://vector/1/basic-main',
+      dragPan: !isMobileOrTablet()
+    });
+    var roundLatLng = Formatters.roundLatLng
+    var startPoint, endPoint, startMarker, endMarker, startPopup, endPopup, routeLocation
+    var startInit = [112.637778, -7.970556,]
+    var sroute = io("/update-route");
+    var tripId = 'J9fj'
+    sroute.on('connect', function () {
+      var routeData = JSON.stringify({
+        'TripID': tripId,
+      })
+      sroute.emit('join', routeData, function (data) { console.log(data) })
+    });
+    startMarker = new tt.Marker({ element: createMarkerElement('start'), draggable: true })
+    endMarker = new tt.Marker({ element: createMarkerElement('end'), draggable: true })
+    startPopup = new tt.Popup({ offset: 35 })
+    endPopup = new tt.Popup({ offset: 35 })
+    map.addControl(new tt.FullscreenControl());
+    map.addControl(new tt.NavigationControl());
+    function createMarkerElement(type) {
+      var element = document.createElement('div');
+      element.className = 'icon tt-icon-shield';
+      var innerElement = document.createElement('div');
+      innerElement.className = 'icon tt-icon-' + type;
+      element.appendChild(innerElement);
+      return element;
+    }
+
+    function findFirstBuildingLayerId() {
+      var layers = map.getStyle().layers;
+      for (var index in layers) {
+        if (layers[index].type === 'fill-extrusion') {
+          return layers[index].id;
+        }
+      }
+      throw new Error('Map style does not contain any layer with fill-extrusion type.');
+    }
+    map.once('load', function () {
+      startMarker.setLngLat(startInit).addTo(map);
+      endMarker.setLngLat(startInit).addTo(map);
+      var lngLat = new tt.LngLat(roundLatLng(startInit[0]), roundLatLng(startInit[1]));
+      startPoint = lngLat
+      endPoint = lngLat
+    });
+    startMarker.on('dragend', function () {
+      var lngLat = startMarker.getLngLat();
+      lngLat = new tt.LngLat(roundLatLng(lngLat.lng), roundLatLng(lngLat.lat));
+      startPoint = lngLat
+      startPopup.setHTML(lngLat.toString());
+      startPopup.setLngLat(lngLat);
+      startMarker.setPopup(startPopup);
+      startMarker.togglePopup();
+      routeLocation = startPoint.lng.toString() + ',' + startPoint.lat.toString() + ':' + endPoint.lng.toString() + ',' + endPoint.lat.toString()
+    });
+
+    endMarker.on('dragend', function () {
+      var lngLat = endMarker.getLngLat();
+      lngLat = new tt.LngLat(roundLatLng(lngLat.lng), roundLatLng(lngLat.lat));
+      endPoint = lngLat
+      endPopup.setHTML(lngLat.toString());
+      endPopup.setLngLat(lngLat);
+      endMarker.setPopup(endPopup);
+      endMarker.togglePopup();
+      routeLocation = startPoint.lng.toString() + ',' + startPoint.lat.toString() + ':' + endPoint.lng.toString() + ',' + endPoint.lat.toString()
+    });
+    window.addRoute = function () {
+      tt.services.calculateRoute({
+        key: 'ST7qnHDEA1zeHWWZ4OCMhCaAiOCsgGb5',
+        traffic: false,
+        locations: routeLocation
+      })
+        .go()
+        .then(function (response) {
+          console.log(response)
+          var geojson = response.toGeoJson();
+          map.addLayer({
+            'id': 'route',
+            'type': 'line',
+            'source': {
+              'type': 'geojson',
+              'data': geojson
+            },
+            'paint': {
+              'line-color': '#00d7ff',
+              'line-width': 8
+            }
+          }, findFirstBuildingLayerId());
+          var feature = geojson.features[0]
+          if (feature.geometry.type === 'MultiLineString') {
+            startPoint = feature.geometry.coordinates[0][0]; //get first point from first line
+            endPoint = feature.geometry.coordinates.slice(-1)[0].slice(-1)[0]; //get last point from last line
+          } else {
+            startPoint = feature.geometry.coordinates[0];
+            endPoint = feature.geometry.coordinates.slice(-1)[0];
+          }
+          var bounds = new tt.LngLatBounds();
+          geojson.features[0].geometry.coordinates.forEach(function (point) {
+            bounds.extend(tt.LngLat.convert(point));
+          });
+          map.fitBounds(bounds, { duration: 0, padding: 50 });
+        });
+    }
+    sroute.on('route', function (data) {
+      var newRoute = JSON.parse(data)
+      var lngLat = new tt.LngLat(roundLatLng(newRoute.Lng), roundLatLng(newRoute.Lat));
+      startMarker.setLngLat(lngLat);
+    })
+
+  </script>
+</body>
+
+</html>
